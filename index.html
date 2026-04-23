@@ -2,139 +2,47 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Audio Cleaner PRO - Stable Version</title>
-
-    <script src="https://ghcdn.rawgit.org/gzuidhof/coi-serviceworker/master/coi-serviceworker.js"></script>
-    
+    <title>AI Audio Cleaner</title>
     <script src="https://unpkg.com/wavesurfer.js@7"></script>
     <script src="https://cdn.jsdelivr.net/npm/@shren/rnnoise-wasm@1.0.1/dist/rnnoise.js"></script>
-
     <style>
-        body { font-family: 'Kanit', sans-serif; background: #0f172a; color: white; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
-        .container { background: #1e293b; padding: 30px; border-radius: 24px; width: 95%; max-width: 650px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.4); }
-        h1 { color: #38bdf8; margin-bottom: 10px; }
-        .upload-area { border: 2px dashed #38bdf8; padding: 25px; border-radius: 15px; margin-bottom: 20px; background: rgba(56, 189, 248, 0.05); }
-        #waveform { background: rgba(0,0,0,0.3); border-radius: 12px; margin: 20px 0; min-height: 128px; }
-        .progress-container { width: 100%; background: #334155; border-radius: 10px; height: 12px; margin: 20px 0; display: none; overflow: hidden; }
-        #progressBar { width: 0%; height: 100%; background: #38bdf8; transition: width 0.2s; }
-        .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        button { padding: 14px; border-radius: 12px; border: none; cursor: pointer; font-weight: bold; font-size: 1rem; transition: 0.3s; }
-        .btn-play { background: #38bdf8; color: #0f172a; }
-        .btn-ai { background: #f59e0b; color: white; }
-        button:disabled { background: #475569; cursor: not-allowed; opacity: 0.5; }
-        #status { margin-top: 20px; font-size: 0.9rem; color: #94a3b8; }
+        body { font-family: sans-serif; background: #111; color: white; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .container { background: #222; padding: 20px; border-radius: 10px; width: 90%; max-width: 500px; text-align: center; }
+        #waveform { background: #333; margin: 20px 0; }
+        button { padding: 10px 20px; cursor: pointer; }
     </style>
 </head>
 <body>
-
-<div class="container">
-    <h1>AI Audio Cleaner PRO</h1>
-    <p>ระบบลบเสียงรบกวนด้วยสมองกล (รองรับไฟล์ยาว)</p>
-
-    <div class="upload-area">
-        <input type="file" id="audioInput" accept="audio/*" onchange="loadAudio()">
+    <div class="container">
+        <h1>AI Cleaner</h1>
+        <input type="file" id="audioInput" accept="audio/*">
+        <div id="waveform"></div>
+        <button onclick="process()">เริ่มลบ Noise</button>
+        <p id="status">รอไฟล์...</p>
     </div>
 
-    <div id="waveform"></div>
-
-    <div class="progress-container" id="pContainer">
-        <div id="progressBar"></div>
-    </div>
-
-    <div class="controls">
-        <button class="btn-play" id="btnPlay" onclick="togglePlay()" disabled>⏯️ เล่น / หยุด</button>
-        <button class="btn-ai" id="btnEnhance" onclick="processAudio()" disabled>✨ ลบเสียงรบกวนด้วย AI</button>
-    </div>
-
-    <div id="status">กรุณาเลือกไฟล์เสียงเพื่อเริ่มต้น...</div>
-</div>
-
-<script>
-    let wavesurfer = WaveSurfer.create({
-        container: '#waveform',
-        waveColor: '#38bdf8',
-        progressColor: '#0ea5e9',
-        height: 128,
-        barWidth: 2,
-        responsive: true
-    });
-
-    let originalBuffer = null;
-
-    async function loadAudio() {
-        const fileInput = document.getElementById('audioInput');
-        const file = fileInput.files[0];
-        if (file) {
-            document.getElementById('status').innerText = "⌛ กำลังโหลดและถอดรหัสไฟล์...";
-            const objectUrl = URL.createObjectURL(file);
-            await wavesurfer.load(objectUrl);
-            
-            wavesurfer.on('ready', () => {
-                originalBuffer = wavesurfer.getDecodedData();
-                document.getElementById('status').innerText = "✅ โหลดไฟล์เรียบร้อย พร้อมลบ Noise";
-                document.getElementById('btnPlay').disabled = false;
-                document.getElementById('btnEnhance').disabled = false;
-            });
-        }
-    }
-
-    function togglePlay() { wavesurfer.playPause(); }
-
-    async function processAudio() {
-        const status = document.getElementById('status');
-        const pBar = document.getElementById('progressBar');
-        const pContainer = document.getElementById('pContainer');
-        const btn = document.getElementById('btnEnhance');
-
-        try {
-            btn.disabled = true;
-            pContainer.style.display = 'block';
-            status.innerText = "⏳ กำลังเรียกสมอง AI (ครั้งแรกอาจใช้เวลาโหลด)...";
-
-            // เรียกใช้ AI
+    <script>
+        const ws = WaveSurfer.create({ container: '#waveform', waveColor: 'blue' });
+        
+        async function process() {
+            document.getElementById('status').innerText = "กำลังประมวลผล...";
             const rnnoise = await Rnnoise.create();
-            const inputData = originalBuffer.getChannelData(0);
-            const totalSamples = inputData.length;
-            const sampleRate = originalBuffer.sampleRate;
-            const outputData = new Float32Array(totalSamples);
+            const input = ws.getDecodedData().getChannelData(0);
+            const output = new Float32Array(input.length);
             
-            // หั่นทำทีละ 10 วินาที เพื่อประหยัด RAM
-            const chunkSize = sampleRate * 10;
-
-            for (let i = 0; i < totalSamples; i += chunkSize) {
-                const progress = Math.round((i / totalSamples) * 100);
-                pBar.style.width = progress + "%";
-                status.innerText = `🚀 กำลังประมวลผล... ${progress}%`;
-
-                const end = Math.min(i + chunkSize, totalSamples);
-                const chunk = inputData.slice(i, end);
-                
-                const processedChunk = await rnnoise.process(chunk);
-                outputData.set(processedChunk, i);
-
-                // พักเครื่องสั้นๆ ป้องกัน Browser ค้าง
-                await new Promise(r => setTimeout(r, 1));
+            // ประมวลผลแบบหั่นส่วน
+            const chunk = 48000 * 5; 
+            for(let i=0; i<input.length; i+=chunk) {
+                const slice = input.slice(i, i+chunk);
+                output.set(await rnnoise.process(slice), i);
+                document.getElementById('status').innerText = Math.round(i/input.length * 100) + "%";
             }
-
-            status.innerText = "✨ เสร็จสมบูรณ์! กำลังอัปเดตคลื่นเสียง...";
-            
-            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const newBuffer = audioCtx.createBuffer(1, outputData.length, sampleRate);
-            newBuffer.copyToChannel(outputData, 0);
-            
-            wavesurfer.loadDecodedBuffer(newBuffer);
-            pBar.style.width = "100%";
-            status.innerText = "✅ ลบเสียงรบกวนสำเร็จ! ลองกดฟังได้เลย";
-            btn.disabled = false;
-
-        } catch (error) {
-            console.error(error);
-            status.innerText = "❌ เกิดข้อผิดพลาด: โปรดลองใช้ Chrome หรือรีเฟรชหน้าเว็บ";
-            btn.disabled = false;
+            alert("เสร็จแล้ว!");
         }
-    }
-</script>
 
+        document.getElementById('audioInput').onchange = (e) => {
+            ws.load(URL.createObjectURL(e.target.files[0]));
+        };
+    </script>
 </body>
 </html>
