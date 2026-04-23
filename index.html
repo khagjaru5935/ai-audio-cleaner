@@ -2,94 +2,94 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Audio Cleaner - Standard PRO</title>
+    <title>AI Audio Cleaner - Simple & Working</title>
     <script src="https://unpkg.com/wavesurfer.js@7"></script>
     <script src="https://cdn.jsdelivr.net/npm/@shren/rnnoise-wasm@1.0.1/dist/rnnoise.js"></script>
     <style>
-        body { font-family: sans-serif; background: #0f172a; color: white; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
-        .container { background: #1e293b; padding: 25px; border-radius: 20px; width: 90%; max-width: 550px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
-        h1 { color: #38bdf8; font-size: 1.5rem; margin-bottom: 20px; }
-        .upload-section { border: 2px dashed #334155; padding: 20px; border-radius: 12px; margin-bottom: 20px; }
-        #waveform { background: rgba(0,0,0,0.2); border-radius: 10px; margin-bottom: 20px; min-height: 100px; }
-        .btn-group { display: flex; gap: 10px; justify-content: center; margin-top: 10px; }
-        button { padding: 12px 20px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; }
-        .btn-play { background: #38bdf8; color: #0f172a; }
-        .btn-clean { background: #f59e0b; color: white; }
-        button:disabled { opacity: 0.3; cursor: not-allowed; }
-        #status { margin-top: 15px; color: #94a3b8; font-size: 0.9rem; }
+        body { font-family: sans-serif; background: #111; color: white; text-align: center; padding: 20px; }
+        .container { background: #222; padding: 30px; border-radius: 15px; max-width: 500px; margin: auto; border: 1px solid #444; }
+        #waveform { background: #000; margin: 20px 0; border-radius: 5px; }
+        button { padding: 12px 20px; margin: 5px; cursor: pointer; border-radius: 5px; border: none; font-weight: bold; }
+        .btn-play { background: #00adb5; color: white; }
+        .btn-clean { background: #ff5722; color: white; }
+        button:disabled { opacity: 0.3; }
+        #status { color: #888; margin-top: 15px; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>AI Audio Cleaner</h1>
-    
-    <div class="upload-section">
-        <input type="file" id="audioInput" accept="audio/*">
-    </div>
-
+    <h2>AI Audio Cleaner</h2>
+    <input type="file" id="audioInput" accept="audio/*">
     <div id="waveform"></div>
-
-    <div class="btn-group">
-        <button id="btnPlay" class="btn-play" disabled>⏯️ เล่น / หยุด</button>
-        <button id="btnClean" class="btn-clean" disabled>✨ ลบ Noise</button>
+    
+    <div class="controls">
+        <button id="btnPlay" class="btn-play" disabled>Play / Pause</button>
+        <button id="btnClean" class="btn-clean" disabled>เริ่มลบ Noise</button>
     </div>
-
-    <div id="status">รอเลือกไฟล์เสียง...</div>
+    
+    <div id="status">เลือกไฟล์ mp3 เพื่อเริ่ม</div>
 </div>
 
 <script>
+    // 1. สร้างเครื่องเล่นเสียงแบบง่าย
     const ws = WaveSurfer.create({
         container: '#waveform',
-        waveColor: '#38bdf8',
-        progressColor: '#0ea5e9',
-        height: 100,
-        responsive: true
+        waveColor: '#00adb5',
+        progressColor: '#eeeeee',
+        height: 100
     });
 
     const status = document.getElementById('status');
     const btnPlay = document.getElementById('btnPlay');
     const btnClean = document.getElementById('btnClean');
-    let originalBuffer = null;
 
+    // 2. เมื่อเลือกไฟล์
     document.getElementById('audioInput').onchange = (e) => {
         const file = e.target.files[0];
         if (file) {
-            status.innerText = "⌛ กำลังถอดรหัสไฟล์...";
+            status.innerText = "โหลดไฟล์...";
             ws.load(URL.createObjectURL(file));
         }
     };
 
+    // 3. เมื่อเครื่องเล่นพร้อม
     ws.on('ready', () => {
-        originalBuffer = ws.getDecodedData();
-        status.innerText = "✅ พร้อมทำงาน";
+        status.innerText = "พร้อมแล้ว";
         btnPlay.disabled = false;
         btnClean.disabled = false;
     });
 
+    // 4. ปุ่ม Play/Pause
     btnPlay.onclick = () => ws.playPause();
 
+    // 5. ปุ่มลบ Noise (ใช้ Logic แบบเรียบง่ายที่สุด)
     btnClean.onclick = async () => {
         try {
             btnClean.disabled = true;
-            status.innerText = "⏳ กำลังเรียก AI (โปรดรอสักครู่)...";
+            status.innerText = "กำลังเรียก AI...";
             
             const rnnoise = await Rnnoise.create();
-            const input = originalBuffer.getChannelData(0);
+            const originalBuffer = ws.getDecodedData();
+            const inputData = originalBuffer.getChannelData(0);
             
-            status.innerText = "🚀 กำลังประมวลผล...";
-            const processed = await rnnoise.process(input);
+            status.innerText = "กำลังประมวลผล... (รอสักครู่)";
             
+            // ประมวลผลลบ Noise (ใช้แบบก้อนเดียวตามตัวที่เคยรันผ่าน)
+            const processed = await rnnoise.process(inputData);
+            
+            // สร้างไฟล์ใหม่ใส่กลับในเครื่องเล่น
             const audioCtx = new AudioContext();
             const newBuffer = audioCtx.createBuffer(1, processed.length, originalBuffer.sampleRate);
             newBuffer.copyToChannel(processed, 0);
             
             ws.loadDecodedBuffer(newBuffer);
-            status.innerText = "✨ ลบเสียงรบกวนสำเร็จ!";
+            status.innerText = "เสร็จเรียบร้อย!";
             btnClean.disabled = false;
+
         } catch (e) {
-            status.innerText = "❌ Browser บล็อกการรัน AI (แนะนำให้ใช้ Chrome)";
+            console.error(e);
+            status.innerText = "เกิดข้อผิดพลาด: เบราว์เซอร์บล็อกการทำงาน";
             btnClean.disabled = false;
         }
     };
