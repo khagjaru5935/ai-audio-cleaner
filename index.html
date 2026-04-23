@@ -2,46 +2,57 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <title>AI Audio Cleaner</title>
+    <title>AI Audio Cleaner - Standard Version</title>
     <script src="https://unpkg.com/wavesurfer.js@7"></script>
     <script src="https://cdn.jsdelivr.net/npm/@shren/rnnoise-wasm@1.0.1/dist/rnnoise.js"></script>
     <style>
-        body { font-family: sans-serif; background: #111; color: white; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
-        .container { background: #222; padding: 20px; border-radius: 10px; width: 90%; max-width: 500px; text-align: center; }
-        #waveform { background: #333; margin: 20px 0; }
-        button { padding: 10px 20px; cursor: pointer; }
+        body { font-family: sans-serif; background: #0f172a; color: white; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .container { background: #1e293b; padding: 30px; border-radius: 20px; width: 90%; max-width: 500px; text-align: center; }
+        #waveform { background: rgba(0,0,0,0.2); margin: 20px 0; border-radius: 10px; }
+        button { background: #38bdf8; color: #0f172a; padding: 12px 24px; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; }
+        #status { color: #94a3b8; margin-top: 15px; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>AI Cleaner</h1>
+        <h1>AI Audio Cleaner</h1>
+        <p>เวอร์ชันปลอดภัย (ไม่มีการ Redirect)</p>
         <input type="file" id="audioInput" accept="audio/*">
         <div id="waveform"></div>
-        <button onclick="process()">เริ่มลบ Noise</button>
-        <p id="status">รอไฟล์...</p>
+        <button onclick="processAudio()">เริ่มลบเสียงรบกวน</button>
+        <div id="status">รอไฟล์เสียง...</div>
     </div>
 
     <script>
-        const ws = WaveSurfer.create({ container: '#waveform', waveColor: 'blue' });
+        const ws = WaveSurfer.create({ container: '#waveform', waveColor: '#38bdf8' });
         
-        async function process() {
-            document.getElementById('status').innerText = "กำลังประมวลผล...";
-            const rnnoise = await Rnnoise.create();
-            const input = ws.getDecodedData().getChannelData(0);
-            const output = new Float32Array(input.length);
-            
-            // ประมวลผลแบบหั่นส่วน
-            const chunk = 48000 * 5; 
-            for(let i=0; i<input.length; i+=chunk) {
-                const slice = input.slice(i, i+chunk);
-                output.set(await rnnoise.process(slice), i);
-                document.getElementById('status').innerText = Math.round(i/input.length * 100) + "%";
+        async function processAudio() {
+            const status = document.getElementById('status');
+            try {
+                status.innerText = "⏳ กำลังเรียกใช้ AI...";
+                const rnnoise = await Rnnoise.create(); // จุดนี้อาจจะ Error ถ้า Browser บล็อก
+                const audioBuffer = ws.getDecodedData();
+                const inputData = audioBuffer.getChannelData(0);
+                
+                status.innerText = "🚀 กำลังประมวลผล (0%)...";
+                const processed = await rnnoise.process(inputData); // ประมวลผลแบบก้อนเดียวเพื่อความง่าย
+                
+                // สร้างไฟล์ใหม่หลังทำเสร็จ
+                const audioCtx = new AudioContext();
+                const newBuffer = audioCtx.createBuffer(1, processed.length, audioBuffer.sampleRate);
+                newBuffer.copyToChannel(processed, 0);
+                ws.loadDecodedBuffer(newBuffer);
+                
+                status.innerText = "✅ เสร็จเรียบร้อย!";
+            } catch (e) {
+                console.error(e);
+                status.innerText = "❌ Browser บล็อกการทำงานของ AI (SharedArrayBuffer) โปรดลองใช้ Chrome";
             }
-            alert("เสร็จแล้ว!");
         }
 
         document.getElementById('audioInput').onchange = (e) => {
-            ws.load(URL.createObjectURL(e.target.files[0]));
+            const file = e.target.files[0];
+            if (file) ws.load(URL.createObjectURL(file));
         };
     </script>
 </body>
