@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>AI Audio Cleaner - Ultra Safe Version</title>
+    <script src="https://unpkg.com/wavesurfer.js@7"></script>
+    <script src="https://unpkg.com/@shren/rnnoise-wasm@1.0.1/dist/rnnoise.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f172a; color: white; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .container { background: #1e293b; padding: 30px; border-radius: 20px; width: 90%; max-width: 600px; text-align: center; }
+        .upload-area { border: 2px dashed #38bdf8; padding: 20px; border-radius: 15px; margin-bottom: 20px; }
+        #waveform { background: rgba(0,0,0,0.2); border-radius: 10px; margin: 20px 0; min-height: 100px; }
+        .progress-container { width: 100%; background: #334155; border-radius: 10px; height: 10px; margin: 15px 0; display: none; overflow: hidden; }
+        #progressBar { width: 0%; height: 100%; background: #38bdf8; }
+        button { padding: 12px 20px; border-radius: 10px; border: none; cursor: pointer; font-weight: bold; margin: 5px; transition: 0.3s; }
+        .btn-play { background: #38bdf8; color: #0f172a; }
+        .btn-ai { background: #f59e0b; color: white; }
+        button:disabled { background: #475569; opacity: 0.5; }
+        #status { margin-top: 15px; font-size: 0.85rem; color: #94a3b8; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>AI Audio Cleaner</h1>
+    <div class="upload-area">
+        <input type="file" id="audioInput" accept="audio/*" onchange="loadAudio()">
+    </div>
+    <div id="waveform"></div>
+    <div class="progress-container" id="pContainer"><div id="progressBar"></div></div>
+    <button class="btn-play" id="btnPlay" onclick="togglePlay()" disabled>⏯️ เล่น/หยุด</button>
+    <button class="btn-ai" id="btnEnhance" onclick="processAudio()" disabled>✨ ลบ Noise</button>
+    <div id="status">รอการอัปโหลด...</div>
+</div>
+
+<script>
+    let wavesurfer = WaveSurfer.create({
+        container: '#waveform',
+        waveColor: '#38bdf8',
+        progressColor: '#0ea5e9',
+        height: 100,
+        responsive: true
+    });
+
+    let originalBuffer = null;
+
+    async function loadAudio() {
+        const file = document.getElementById('audioInput').files[0];
+        if (file) {
+            document.getElementById('status').innerText = "⌛ กำลังถอดรหัสไฟล์...";
+            const objectUrl = URL.createObjectURL(file);
+            await wavesurfer.load(objectUrl);
+            originalBuffer = wavesurfer.getDecodedData();
+            document.getElementById('status').innerText = "✅ พร้อมทำงาน";
+            document.getElementById('btnPlay').disabled = false;
+            document.getElementById('btnEnhance').disabled = false;
+        }
+    }
+
+    function togglePlay() { wavesurfer.playPause(); }
+
+    async function processAudio() {
+        const status = document.getElementById('status');
+        const pBar = document.getElementById('progressBar');
+        const pContainer = document.getElementById('pContainer');
+        
+        try {
+            status.innerText = "⏳ กำลังเรียกใช้ AI...";
+            pContainer.style.display = 'block';
+            
+            // สร้างสมอง AI
+            const rnnoise = await Rnnoise.create();
+            const inputData = originalBuffer.getChannelData(0);
+            const totalSamples = inputData.length;
+            const outputData = new Float32Array(totalSamples);
+            
+            // หั่นทำทีละ 10 วินาที เพื่อความปลอดภัย
+            const chunkSize = originalBuffer.sampleRate * 10;
+
+            for (let i = 0; i < totalSamples; i += chunkSize) {
+                const progress = Math.round((i / totalSamples) * 100);
+                pBar.style.width = progress + "%";
+                status.innerText = `🚀 กำลังลบ Noise... ${progress}%`;
+
+                const end = Math.min(i + chunkSize, totalSamples);
+                const chunk = inputData.slice(i, end);
+                
+                // ประมวลผล
+                const processedChunk = await rnnoise.process(chunk);
+                outputData.set(processedChunk, i);
+
+                // พักเครื่อง 1ms ป้องกันเว็บค้าง
+                await new Promise(r => setTimeout(r, 1));
+            }
+
+            status.innerText = "✨ เสร็จสมบูรณ์! กำลังสร้างไฟล์ใหม่...";
+            
+            // สร้าง Buffer ใหม่
+            const audioCtx = new AudioContext();
+            const newBuffer = audioCtx.createBuffer(1, outputData.length, originalBuffer.sampleRate);
+            newBuffer.copyToChannel(outputData, 0);
+            
+            wavesurfer.loadDecodedBuffer(newBuffer);
+            pBar.style.width = "100%";
+            status.innerText = "✅ ลบ Noise เรียบร้อยแล้ว!";
+
+        } catch (e) {
+            console.error(e);
+            status.innerText = "❌ เกิดข้อผิดพลาด: ลองเปลี่ยน Browser หรือรันผ่าน GitHub Pages";
+        }
+    }
+</script>
+</body>
+</html>
